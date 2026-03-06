@@ -79,7 +79,7 @@ export default function ProjectSummary() {
       color: "text-yellow-500",
     },
     {
-      label: "Comercial.",
+      label: "Comercialización",
       detail: metrics?.marketingCosts,
       icon: TrendingDown,
       color: "text-red-500",

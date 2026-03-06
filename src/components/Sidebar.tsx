@@ -1,4 +1,6 @@
-import { LayoutDashboard, LogOut, Settings, X, Zap } from "lucide-react";
+import { LayoutDashboard, LogOut, Settings, X } from "lucide-react";
+import Image from "next/image";
+import logo from "../../public/logo.png";
 import React from "react";
 import { useRouter } from "next/router";
 import { sileo } from "sileo";
@@ -50,12 +52,15 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
           {/* Logo / Header */}
           <div className="p-5 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="bg-[#915BD8] p-1.5 rounded-xl text-white shadow-md">
-                <Zap className="w-4 h-4 fill-current" />
+              <Image src={logo} alt="Unergy" width={28} height={28} className="rounded-lg shrink-0" />
+              <div className="flex flex-col leading-tight">
+                <span className="text-base font-black tracking-tight text-[#915BD8] dark:text-[#b07ee8]">
+                  Unergy
+                </span>
+                <span className="text-[8px] font-semibold text-zinc-400 dark:text-zinc-500 tracking-tight leading-none">
+                  Energía Digital S.A.S E.S.P
+                </span>
               </div>
-              <span className="text-lg font-bold tracking-tight text-[#915BD8] dark:text-[#b07ee8]">
-                Unergy
-              </span>
             </div>
             <button 
               type="button"

@@ -375,3 +375,71 @@ ODOO_PASSWORD=your_api_key
 | `mcp__odoo__search_invoices` | Search vendor/customer invoices by product keyword, with supplier, analytic account and subtotals |
 | `mcp__odoo__get_employee_leaves` | Get vacation assignments, approved leaves and available balance |
 | `mcp__odoo__export_to_csv` | Export any Odoo model to a CSV file (`;` separator, UTF-8 BOM for Excel) |
+
+---
+
+## 🗄️ Odoo Data Model — Sun Money Instance
+
+### Credentials (env vars in `.env.local`)
+```
+ODOO_URL=https://unergy-20260302-29219831.dev.odoo.com
+ODOO_DB=unergy-20260302-29219831
+ODOO_USERNAME=juliana@solenium.co
+ODOO_PASSWORD=<api_key in .env.local>
+```
+
+### REST API (Next.js routes in `src/pages/api/odoo/`)
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `GET  /api/odoo/invoices/asociados` | GET | Facturas de cliente (`out_invoice`) del periodo seleccionado |
+| `POST /api/odoo/execute` | POST | Ejecuta cualquier método XML-RPC en cualquier modelo |
+| `POST /api/odoo/invoices/search` | POST | Busca líneas de factura por keyword |
+| `GET  /api/odoo/employees/[name]/leaves` | GET | Vacaciones de un empleado |
+| `POST /api/odoo/export` | POST | Exporta un modelo a CSV descargable |
+
+The XML-RPC client lives in `src/lib/odoo.ts` — no external dependencies, uses native `fetch`.
+
+### Partner Categories (`res.partner.category`)
+| id | name | Meaning |
+|----|------|---------|
+| 1 | Partícipe Plataforma | **Inversionistas / Asociados** — main investors |
+| 2 | Propietario de terreno | Landowners |
+| 3–11 | Individual names | Tags for specific investor groups |
+
+### Key Models
+| Model | Use |
+|-------|-----|
+| `account.move` | Invoices. `move_type='out_invoice'` = customer invoice (= factura al inversionista). `move_type='in_invoice'` = vendor invoice. |
+| `account.move.line` | Invoice lines. Links to `analytic_distribution` for analytic accounts. |
+| `res.partner` | Contacts / customers. Investors have `category_id = 1` (Partícipe Plataforma). |
+| `res.partner.category` | Partner tags / categories. |
+| `hr.employee` | Employees. |
+| `hr.leave` | Approved absences (vacations). |
+| `hr.leave.allocation` | Vacation day allocations. |
+| `account.analytic.account` | Analytic accounts — linked to invoice lines via `analytic_distribution` (dict of `{account_id: percentage}`). |
+
+### Invoice Numbers
+Customer invoices use prefixes `SUFV` and `UNFV`, e.g. `SUFV507`, `UNFV1834`.
+
+### `GET /api/odoo/invoices/asociados` — Query Params
+| Param | Default | Description |
+|-------|---------|-------------|
+| `investor` | — | Partner name (`ilike` match). Omit or `"Total"` for all. |
+| `months` | current month | Comma-separated Spanish month names, e.g. `"Enero,Febrero"` |
+| `year` | current year | 4-digit year |
+
+Month filtering builds an Odoo domain using prefix OR notation:
+- 1 month → `['&', [date>=from], [date<=to]]`
+- N months → `[N-1× '|', '&', from1, to1, '&', from2, to2, …]`
+
+### Domain Tips
+```typescript
+// All customer invoices for a specific investor (partial name match)
+[["move_type", "=", "out_invoice"], ["partner_id.name", "ilike", "GARCIA"]]
+
+// All invoices for Partícipe Plataforma category
+[["move_type", "=", "out_invoice"], ["partner_id.category_id", "=", 1]]
+
+// Filter by date range
+[["invoice_date", ">=", "2026-01-01"], ["invoice_date", "<=", "2026-01-31"]]
+```
