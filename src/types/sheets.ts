@@ -10,6 +10,7 @@ export type SourceRow = {
   concepto: string;
   valor: number;
   inversionista?: string;
+  soporte?: string; // URL o referencia de documento soporte
 };
 
 export type MetricDetail = {

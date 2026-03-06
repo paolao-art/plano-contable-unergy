@@ -196,6 +196,7 @@ export default function ProjectSummary() {
         onClose={() => setSelectedMetric(null)}
         title={selectedMetric?.title || ""}
         detail={selectedMetric?.detail || null}
+        showSoportes={selectedMetric?.title === "Otros Costos"}
       />
     </>
   );

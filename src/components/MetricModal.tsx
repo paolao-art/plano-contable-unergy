@@ -8,6 +8,7 @@ interface MetricModalProps {
   onClose: () => void;
   title: string;
   detail: MetricDetail | null;
+  showSoportes?: boolean;
 }
 
 export default function MetricModal({
@@ -15,6 +16,7 @@ export default function MetricModal({
   onClose,
   title,
   detail,
+  showSoportes,
 }: MetricModalProps) {
   const [mounted, setMounted] = useState(false);
 
@@ -83,6 +85,9 @@ export default function MetricModal({
                   <th className="px-8 py-4">Proyecto</th>
                   <th className="px-8 py-4">Concepto</th>
                   <th className="px-8 py-4 text-right">Valor</th>
+                  {showSoportes && (
+                    <th className="px-8 py-4">Soportes</th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800 text-xs">
@@ -109,6 +114,26 @@ export default function MetricModal({
                         maximumFractionDigits: 2,
                       })}
                     </td>
+                    {showSoportes && (
+                      <td className="px-8 py-4 text-xs text-zinc-500 dark:text-zinc-400">
+                        {row.soporte ? (
+                          row.soporte.startsWith("http") ? (
+                            <a
+                              href={row.soporte}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-500 underline hover:text-blue-700"
+                            >
+                              Ver
+                            </a>
+                          ) : (
+                            row.soporte
+                          )
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

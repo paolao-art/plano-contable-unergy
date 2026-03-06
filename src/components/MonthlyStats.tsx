@@ -112,6 +112,7 @@ export default function MonthlyStats() {
         onClose={() => setCostsDetail(null)}
         title="Otros Costos"
         detail={costsDetail}
+        showSoportes
       />
       <MetricModal
         isOpen={isCobrosOpen}
