@@ -14,7 +14,8 @@ const findRowsAndValuesByFilters = (
   const conceptoIdx = headers.indexOf("Concepto");
   const proyectoIdx = headers.indexOf("Proyecto");
   const inversionistaIdx = headers.indexOf("Inversionista");
-  
+  const consecutivoIdx = headers.indexOf("Consecutivo");
+
   if (targetIdx === -1) return { values: [0], sourceRows: [] };
 
   const matchedRows = rows.filter((row) => {
@@ -41,10 +42,13 @@ const findRowsAndValuesByFilters = (
     }
     
     // Create structured source row for the UI
+    const consecutivoRaw = consecutivoIdx !== -1 ? String(row[consecutivoIdx] || "").trim() : "";
+    const isPdf = consecutivoRaw.toLowerCase().includes(".pdf") || consecutivoRaw.toLowerCase().includes("pdf");
     sourceRows.push({
       proyecto: proyectoIdx !== -1 ? String(row[proyectoIdx] || "").trim() : "Consolidado",
       concepto: conceptoIdx !== -1 ? String(row[conceptoIdx] || "").trim() : "N/A",
       inversionista: inversionistaIdx !== -1 ? String(row[inversionistaIdx] || "").trim() : undefined,
+      soporte: isPdf ? consecutivoRaw : undefined,
       valor: val
     });
 
