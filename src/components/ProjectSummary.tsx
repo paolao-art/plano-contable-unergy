@@ -91,7 +91,7 @@ export default function ProjectSummary() {
       color: "text-blue-500",
     },
     {
-      label: "Costos",
+      label: "Otros Costos",
       detail: metrics?.costs,
       icon: Wallet,
       color: "text-orange-500",
