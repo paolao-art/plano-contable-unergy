@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(fuser -k 3000/tcp)",
+      "Bash(curl -s \"http://localhost:3000/api/sheets?month=Enero&investor=Total&project=Total\")",
+      "Bash(curl -s -b /tmp/cookies.txt \"http://localhost:3000/api/sheets?month=Enero&investor=Total&project=Total\")",
+      "Bash(curl -s -b /tmp/cookies.txt \"http://localhost:3001/api/auth/login\" -X POST -H \"Content-Type: application/json\" -d '{\"\"password\"\":\"\"Passwd123**\"\"}')",
+      "Bash(curl -s -b /tmp/cookies.txt -c /tmp/cookies3001.txt -X POST \"http://localhost:3001/api/auth/login\" -H \"Content-Type: application/json\" -d '{\"\"password\"\":\"\"Passwd123**\"\"}')",
+      "Bash(curl -s -b /tmp/cookies3001.txt \"http://localhost:3001/api/sheets?month=Enero&investor=Total&project=Total\")",
+      "Bash(curl -sv -b /tmp/cookies3001.txt \"http://localhost:3001/api/sheets?month=Enero&investor=Total&project=Total\")",
+      "Bash(git clone https://github.com/sole-open-source/mcp_odoo.git \"C:\\\\Users\\\\paola\\\\Documents\\\\Los mejores\\\\mcp_odoo\")",
+      "Bash(py --version)",
+      "Bash(/c/Users/paola/AppData/Local/Microsoft/WindowsApps/python.exe --version)",
+      "Bash(winget --version)",
+      "Bash(winget install Python.Python.3.12 --silent --accept-package-agreements --accept-source-agreements)",
+      "Bash(\"C:\\\\Users\\\\paola\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python312\\\\python.exe\" -m pip install -e .)",
+      "Bash(npm run build)",
+      "Bash(\"/c/Program Files/nodejs/npm.cmd\" run build)",
+      "Bash(cmd.exe /c \"cd /d \"\"C:\\\\Users\\\\paola\\\\Documents\\\\Los mejores\\\\panel-contable-unergy\\\\.claude\\\\worktrees\\\\frosty-chaum\"\" && npm run build 2>&1\")",
+      "Bash(cmd.exe /c \"cd /d \"\"C:\\\\Users\\\\paola\\\\Documents\\\\Los mejores\\\\panel-contable-unergy\\\\.claude\\\\worktrees\\\\frosty-chaum\"\" && npm run build\")",
+      "Bash(echo \"EXIT: $?\")"
+    ]
+  }
+}
