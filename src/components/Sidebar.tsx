@@ -1,4 +1,4 @@
-import { LayoutDashboard, LogOut, Settings, X } from "lucide-react";
+import { BarChart2, LayoutDashboard, LogOut, Settings, X } from "lucide-react";
 import Image from "next/image";
 import logo from "../../public/logo.png";
 import React from "react";
@@ -13,7 +13,8 @@ interface SidebarProps {
 export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
   const router = useRouter();
   const menuItems = [
-    { name: "Dashboard", icon: LayoutDashboard, active: true },
+    { name: "Inicio", icon: LayoutDashboard, href: "/" },
+    { name: "Gráficas", icon: BarChart2, href: "/graficas" },
   ];
 
   const handleLogout = async () => {
@@ -73,21 +74,24 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
 
           {/* Navigation Items */}
           <nav className="flex-1 px-3 space-y-1 mt-2">
-            {menuItems.map((item) => (
-              <a
-                key={item.name}
-                href="/#"
-                className={`
-                  flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-semibold transition-all
-                  ${item.active 
-                    ? "bg-[#915BD8] text-white shadow-md shadow-[#915BD8]/30 border border-[#915BD8]"
-                    : "text-zinc-500 dark:text-zinc-400 hover:bg-white/40 dark:hover:bg-zinc-800/40 hover:text-zinc-900 dark:hover:text-zinc-200"}
-                `}
-              >
-                <item.icon className="w-4 h-4" />
-                {item.name}
-              </a>
-            ))}
+            {menuItems.map((item) => {
+              const isActive = router.pathname === item.href;
+              return (
+                <a
+                  key={item.name}
+                  href={item.href}
+                  className={`
+                    flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-semibold transition-all
+                    ${isActive
+                      ? "bg-[#915BD8] text-white shadow-md shadow-[#915BD8]/30 border border-[#915BD8]"
+                      : "text-zinc-500 dark:text-zinc-400 hover:bg-white/40 dark:hover:bg-zinc-800/40 hover:text-zinc-900 dark:hover:text-zinc-200"}
+                  `}
+                >
+                  <item.icon className="w-4 h-4 shrink-0" />
+                  <span className="truncate">{item.name}</span>
+                </a>
+              );
+            })}
           </nav>
 
           {/* User Profile Mock */}

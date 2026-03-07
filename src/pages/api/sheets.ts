@@ -4,6 +4,17 @@ import { SheetData, Transaction, MetricDetail, SourceRow } from "@/types/sheets"
 
 // --- UTILITIES ---
 
+const columnIndexToLetter = (idx: number): string => {
+  let letter = "";
+  let n = idx + 1;
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    letter = String.fromCharCode(65 + rem) + letter;
+    n = Math.floor((n - 1) / 26);
+  }
+  return letter;
+};
+
 const findRowsAndValuesByFilters = (
   rows: string[][],
   headers: string[],
@@ -14,7 +25,7 @@ const findRowsAndValuesByFilters = (
   const conceptoIdx = headers.indexOf("Concepto");
   const proyectoIdx = headers.indexOf("Proyecto");
   const inversionistaIdx = headers.indexOf("Inversionista");
-  const consecutivoIdx = headers.indexOf("Consecutivo");
+  const consecutivoIdx = headers.indexOf("Consecutivo Ingresos");
 
   if (targetIdx === -1) return { values: [0], sourceRows: [] };
 
@@ -43,12 +54,18 @@ const findRowsAndValuesByFilters = (
     
     // Create structured source row for the UI
     const consecutivoRaw = consecutivoIdx !== -1 ? String(row[consecutivoIdx] || "").trim() : "";
-    const isPdf = consecutivoRaw.toLowerCase().includes(".pdf") || consecutivoRaw.toLowerCase().includes("pdf");
+    // Support: direct URL (injected from hyperlink metadata), =HYPERLINK formula, or filename with .pdf
+    const hyperlinkMatch = consecutivoRaw.match(/^=HYPERLINK\(["']([^"']+)["']/i);
+    const soporte = hyperlinkMatch
+      ? hyperlinkMatch[1]
+      : (consecutivoRaw.startsWith("http") || consecutivoRaw.toLowerCase().includes(".pdf")
+          ? consecutivoRaw
+          : undefined);
     sourceRows.push({
       proyecto: proyectoIdx !== -1 ? String(row[proyectoIdx] || "").trim() : "Consolidado",
       concepto: conceptoIdx !== -1 ? String(row[conceptoIdx] || "").trim() : "N/A",
       inversionista: inversionistaIdx !== -1 ? String(row[inversionistaIdx] || "").trim() : undefined,
-      soporte: isPdf ? consecutivoRaw : undefined,
+      soporte,
       valor: val
     });
 
@@ -160,6 +177,7 @@ export default async function handler(
     const aggEnergyIncome: MetricDetail = { value: 0, sourceRows: [] };
     const aggMarketingCosts: MetricDetail = { value: 0, sourceRows: [] };
     const aggCosts: MetricDetail = { value: 0, sourceRows: [] };
+    let aggParticipationPct = 0;
 
     for (const month of validMonths) {
       const response = await sheets.spreadsheets.values.get({
@@ -171,6 +189,26 @@ export default async function handler(
       if (allRows.length === 0) continue;
 
       const headers = allRows[0].map((h) => String(h).trim());
+
+      // Inject real hyperlink URLs into the "Consecutivo Ingresos" column
+      const consecutivoColIdx = headers.indexOf("Consecutivo Ingresos");
+      if (consecutivoColIdx !== -1) {
+        const colLetter = columnIndexToLetter(consecutivoColIdx);
+        try {
+          const gridRes = await sheets.spreadsheets.get({
+            spreadsheetId,
+            ranges: [`${month}!${colLetter}1:${colLetter}10000`],
+            includeGridData: true,
+            fields: "sheets.data.rowData.values.hyperlink",
+          });
+          const rowData = gridRes.data.sheets?.[0]?.data?.[0]?.rowData || [];
+          rowData.forEach((rd, i) => {
+            const url = (rd.values?.[0] as { hyperlink?: string })?.hyperlink;
+            if (url && allRows[i]) allRows[i][consecutivoColIdx] = url;
+          });
+        } catch { /* fallback to text value */ }
+      }
+
       const conceptoIdx = headers.indexOf("Concepto");
       const dataRows = allRows.slice(1).filter((row) =>
         conceptoIdx === -1 || String(row[conceptoIdx] || "").trim() !== "Valor a pagar"
@@ -203,6 +241,11 @@ export default async function handler(
       } else if (currentProjects.length > 1) {
         const escaped = currentProjects.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
         baseFilter.Proyecto = new RegExp(`^(${escaped.join("|")})$`);
+      }
+
+      const participationDetail = compute((get) => get({ ...baseFilter, Concepto: "Porcentaje de Participación" }));
+      if (participationDetail.value > 0 && aggParticipationPct === 0) {
+        aggParticipationPct = participationDetail.value;
       }
 
       const energyIncome = compute((get) => {
@@ -244,7 +287,12 @@ export default async function handler(
       allItems = allItems.concat(items);
     }
 
-    const capex: MetricDetail = { value: 4300000000, sourceRows: [] };
+    const TOTAL_CAPEX = 4300000000;
+    const hasFilter = currentInvestor !== "Total" || currentProjects.length > 0;
+    const capexValue = hasFilter && aggParticipationPct > 0
+      ? TOTAL_CAPEX * aggParticipationPct
+      : TOTAL_CAPEX;
+    const capex: MetricDetail = { value: capexValue, sourceRows: [] };
     const monthlyUtility: MetricDetail = {
       value: aggEnergyIncome.value - aggMarketingCosts.value - aggCosts.value,
       sourceRows: [...aggEnergyIncome.sourceRows, ...aggMarketingCosts.sourceRows, ...aggCosts.sourceRows],
@@ -276,6 +324,7 @@ export default async function handler(
         roi,
         costs: aggCosts,
         tir,
+        participationPct: aggParticipationPct > 0 ? aggParticipationPct : undefined,
       },
     });
   } catch (error: unknown) {

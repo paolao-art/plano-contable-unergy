@@ -26,6 +26,7 @@ export interface ProjectMetrics {
   roi: MetricDetail;
   costs: MetricDetail;
   tir: MetricDetail;
+  participationPct?: number;
 }
 
 export type SheetData = {

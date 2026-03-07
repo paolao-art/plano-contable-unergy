@@ -107,10 +107,13 @@ export default function ProjectSummary() {
 
   const tirValue = metrics?.tir?.value || 0;
 
-  const row2Cards = [
+  const row2Cards: { label: string; value: string; subtitle?: string; icon: LucideIcon; color: string; bg: string; detail: MetricDetail | undefined }[] = [
     {
       label: "CAPEX",
       value: `$${(metrics?.capex?.value || 0).toLocaleString()}`,
+      subtitle: metrics?.participationPct != null
+        ? `${(metrics.participationPct * 100).toFixed(2)}% participación`
+        : undefined,
       icon: Layers,
       color: "text-zinc-500",
       bg: "bg-zinc-500/10",
@@ -186,6 +189,9 @@ export default function ProjectSummary() {
               <p className={`text-xl font-black tracking-tight truncate ${card.color}`}>
                 {card.value}
               </p>
+              {card.subtitle && (
+                <p className="text-[10px] font-semibold text-zinc-400 mt-0.5">{card.subtitle}</p>
+              )}
             </div>
           </div>
         ))}

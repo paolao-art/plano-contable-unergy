@@ -84,7 +84,7 @@ export default function Login() {
               <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
               <>
-                Entrar al Dashboard
+                Entrar al Inicio
                 <ArrowRight className="w-5 h-5" />
               </>
             )}
