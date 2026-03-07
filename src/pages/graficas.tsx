@@ -11,6 +11,7 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
+  Legend,
   ResponsiveContainer,
   Cell,
 } from "recharts";
@@ -191,7 +192,7 @@ function UtilidadComparativa() {
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" vertical={false} />
             <XAxis dataKey="month" tick={{ fontSize: 11, fontWeight: 700 }} axisLine={false} tickLine={false} />
             <YAxis tickFormatter={fmtShort} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={64} />
-            <Tooltip formatter={(v: number, name: string) => [fmtFull(v), name]} contentStyle={tooltipStyle} />
+            <Tooltip formatter={(v, name) => [fmtFull(Number(v)), String(name)]} contentStyle={tooltipStyle} />
             {comparingProjects ? (
               <>
                 <Legend iconType="circle" iconSize={8} formatter={(v) => <span style={{ fontSize: 11, fontWeight: 700 }}>{v}</span>} />
