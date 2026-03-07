@@ -3,7 +3,8 @@
     "allow": [
       "Bash(pip show:*)",
       "Bash(pip install:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(npx tsc:*)"
     ]
   }
 }
