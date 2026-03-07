@@ -102,7 +102,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                   JD
                 </div>
                 <div className="flex-1 overflow-hidden text-left">
-                  <p className="text-xs font-bold text-zinc-900 dark:text-zinc-50 truncate">John Doe</p>
+                  <p className="text-xs font-bold text-zinc-900 dark:text-zinc-50 truncate">Contabilidad</p>
                   <p className="text-[9px] uppercase tracking-tighter font-bold text-zinc-400">Admin</p>
                 </div>
               </div>

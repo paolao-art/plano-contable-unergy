@@ -18,11 +18,10 @@ export default function SortableItem({ id, children }: SortableItemProps) {
     isDragging,
   } = useSortable({ id });
 
-  const style = {
-    transform: CSS.Translate.toString(transform),
-    transition,
-    zIndex: isDragging ? 100 : 1,
-    opacity: isDragging ? 0.5 : 1,
+  const style: React.CSSProperties = {
+    ...(transform ? { transform: CSS.Translate.toString(transform) } : {}),
+    ...(transition ? { transition } : {}),
+    ...(isDragging ? { zIndex: 100, opacity: 0.5 } : {}),
   };
 
   return (

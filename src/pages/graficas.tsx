@@ -1,9 +1,9 @@
 import Head from "next/head";
 import { Menu } from "lucide-react";
+
 import Image from "next/image";
 import logo from "../../public/logo.png";
-import { Geist, Geist_Mono } from "next/font/google";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import {
   BarChart,
   Bar,
@@ -12,29 +12,19 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  PieChart,
-  Pie,
   Cell,
-  Legend,
 } from "recharts";
 
 import Sidebar from "@/components/Sidebar";
 import FilterToolbar from "@/components/FilterToolbar";
 import { SheetDataProvider, useSheet } from "@/context/SheetContext";
-import type { SourceRow } from "@/types/sheets";
 
 const ALL_MONTHS = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
 
-const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
-const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
-
-const PURPLE = "#915BD8";
-const RED = "#F87171";
 const GREEN = "#34D399";
-const COLORS = [PURPLE, "#6B3DB8", "#C4B5FD", "#A78BFA", "#FDE68A", "#F6FF72"];
 
 const fmtShort = (v: number) => {
   if (Math.abs(v) >= 1_000_000_000) return `$${(v / 1_000_000_000).toFixed(1)}B`;
@@ -52,29 +42,6 @@ const tooltipStyle = {
   boxShadow: "0 4px 24px rgba(0,0,0,0.12)",
   fontSize: 13,
   fontWeight: 700,
-};
-
-const groupBy = (rows: SourceRow[], key: "inversionista" | "proyecto") => {
-  const map = new Map<string, number>();
-  for (const row of rows) {
-    const k = (row[key] || "Sin asignar").trim() || "Sin asignar";
-    map.set(k, (map.get(k) || 0) + row.valor);
-  }
-  return map;
-};
-
-const mergeGroups = (
-  incomeMap: Map<string, number>,
-  costsMap: Map<string, number>,
-) => {
-  const keys = new Set([...incomeMap.keys(), ...costsMap.keys()]);
-  return Array.from(keys)
-    .map((name) => ({
-      name,
-      Ingresos: incomeMap.get(name) || 0,
-      Costos: costsMap.get(name) || 0,
-    }))
-    .sort((a, b) => b.Ingresos - a.Ingresos);
 };
 
 const EmptyState = () => (
@@ -250,143 +217,7 @@ function UtilidadComparativa() {
 }
 
 function GraficasContent() {
-  const { data, loading, selectedMonths } = useSheet();
-  const { projectMetrics } = data;
-
-  const incomeRows = projectMetrics?.energyIncome?.sourceRows ?? [];
-  const costsRows = [
-    ...(projectMetrics?.costs?.sourceRows ?? []),
-    ...(projectMetrics?.marketingCosts?.sourceRows ?? []),
-  ];
-
-  // Por inversionista
-  const byInvestor = useMemo(() => mergeGroups(
-    groupBy(incomeRows, "inversionista"),
-    groupBy(costsRows, "inversionista"),
-  ), [incomeRows, costsRows]);
-
-  // Por proyecto
-  const byProject = useMemo(() => mergeGroups(
-    groupBy(incomeRows, "proyecto"),
-    groupBy(costsRows, "proyecto"),
-  ), [incomeRows, costsRows]);
-
-  // Distribución de métricas (pie)
-  const pieData = [
-    { name: "Ingresos Energía", value: projectMetrics?.energyIncome?.value ?? 0 },
-    { name: "Costos Marketing", value: projectMetrics?.marketingCosts?.value ?? 0 },
-    { name: "Otros Costos", value: projectMetrics?.costs?.value ?? 0 },
-  ].filter((m) => m.value > 0);
-
-  // Ingresos vs Costos totales por periodo (un punto por mes seleccionado — aquí es el acumulado del filtro activo)
-  const totalsData = [
-    { name: selectedMonths.length === 1 ? selectedMonths[0] : `${selectedMonths.length} meses`, Ingresos: data.income, Costos: data.expenses },
-  ];
-
-  if (loading && !data.items.length) {
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-72 bg-white/40 animate-pulse rounded-3xl border border-white/40" />
-        ))}
-      </div>
-    );
-  }
-
-  const barChartProps = {
-    margin: { top: 4, right: 8, left: 0, bottom: 4 },
-  };
-
-  return (
-    <div className="space-y-6">
-      {/* Comparativo de Utilidad */}
-      <UtilidadComparativa />
-
-      {/* Por Inversionista */}
-      <ChartCard title="Ingresos vs Costos por Inversionista">
-        {byInvestor.length === 0 ? <EmptyState /> : (
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={byInvestor} {...barChartProps}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" vertical={false} />
-              <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 700 }} axisLine={false} tickLine={false} />
-              <YAxis tickFormatter={fmtShort} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={64} />
-              <Tooltip formatter={(v: number) => fmtFull(v)} contentStyle={tooltipStyle} />
-              <Legend iconType="circle" iconSize={8} />
-              <Bar dataKey="Ingresos" fill={PURPLE} radius={[6, 6, 0, 0]} />
-              <Bar dataKey="Costos" fill={RED} radius={[6, 6, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
-      </ChartCard>
-
-      {/* Por Proyecto */}
-      <ChartCard title="Ingresos vs Costos por Proyecto">
-        {byProject.length === 0 ? <EmptyState /> : (
-          <ResponsiveContainer width="100%" height={Math.max(300, byProject.length * 52)}>
-            <BarChart data={byProject} layout="vertical" {...barChartProps}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" horizontal={false} />
-              <XAxis type="number" tickFormatter={fmtShort} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fontWeight: 700 }} axisLine={false} tickLine={false} width={130} />
-              <Tooltip formatter={(v: number) => fmtFull(v)} contentStyle={tooltipStyle} />
-              <Legend iconType="circle" iconSize={8} />
-              <Bar dataKey="Ingresos" fill={PURPLE} radius={[0, 6, 6, 0]} barSize={18} />
-              <Bar dataKey="Costos" fill={RED} radius={[0, 6, 6, 0]} barSize={18} />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
-      </ChartCard>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Resumen del periodo */}
-        <ChartCard title="Resumen del Periodo">
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={totalsData} {...barChartProps} barSize={56}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" vertical={false} />
-              <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 700 }} axisLine={false} tickLine={false} />
-              <YAxis tickFormatter={fmtShort} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={64} />
-              <Tooltip formatter={(v: number) => fmtFull(v)} contentStyle={tooltipStyle} />
-              <Legend iconType="circle" iconSize={8} />
-              <Bar dataKey="Ingresos" fill={PURPLE} radius={[8, 8, 0, 0]} />
-              <Bar dataKey="Costos" fill={RED} radius={[8, 8, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-          {/* Neto */}
-          <div className={`mt-4 text-center text-sm font-black ${data.income - data.expenses >= 0 ? "text-emerald-500" : "text-orange-500"}`}>
-            Neto: {fmtFull(data.income - data.expenses)}
-          </div>
-        </ChartCard>
-
-        {/* Distribución de costos e ingresos */}
-        <ChartCard title="Distribución de Métricas">
-          {pieData.length === 0 ? <EmptyState /> : (
-            <ResponsiveContainer width="100%" height={260}>
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  cx="50%"
-                  cy="42%"
-                  innerRadius={55}
-                  outerRadius={90}
-                  paddingAngle={3}
-                  dataKey="value"
-                >
-                  {pieData.map((entry, i) => (
-                    <Cell key={entry.name} fill={COLORS[i % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(v: number) => fmtFull(v)} contentStyle={tooltipStyle} />
-                <Legend
-                  iconType="circle"
-                  iconSize={8}
-                  formatter={(v) => <span style={{ fontSize: 11, fontWeight: 700 }}>{v}</span>}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          )}
-        </ChartCard>
-      </div>
-    </div>
-  );
+  return <UtilidadComparativa />;
 }
 
 export default function Graficas() {
@@ -399,7 +230,7 @@ export default function Graficas() {
 
   return (
     <SheetDataProvider>
-      <div className={`${geistSans.className} ${geistMono.className} relative min-h-screen bg-[#FDFAF7] dark:bg-black text-zinc-900 dark:text-zinc-100 transition-colors overflow-hidden`}>
+      <div className="relative min-h-screen bg-[#FDFAF7] dark:bg-black text-zinc-900 dark:text-zinc-100 transition-colors overflow-hidden">
         <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
           <div className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full bg-[#915BD8]/30 blur-3xl dark:bg-[#915BD8]/15" />
           <div className="absolute -bottom-40 -right-40 w-[550px] h-[550px] rounded-full bg-[#F6FF72]/40 blur-3xl dark:bg-[#F6FF72]/10" />

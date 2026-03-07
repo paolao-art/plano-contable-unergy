@@ -2,7 +2,6 @@ import Head from "next/head";
 import { Menu } from "lucide-react";
 import Image from "next/image";
 import logo from "../../public/logo.png";
-import { Geist, Geist_Mono } from "next/font/google";
 import { useState, useEffect } from "react";
 import {
   DndContext,
@@ -30,11 +29,9 @@ import FilterToolbar from "@/components/FilterToolbar";
 import SheetStatus from "@/components/SheetStatus";
 import PrintHeader from "@/components/PrintHeader";
 import DownloadPDFButton from "@/components/DownloadPDFButton";
+import ProjectBanner from "@/components/ProjectBanner";
 import { SheetDataProvider } from "@/context/SheetContext";
 import SortableItem from "@/components/Draggable";
-
-const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
-const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 const DEFAULT_ORDER = ["project-summary", "monthly-stats", "transactions-table"];
 
@@ -86,7 +83,7 @@ export default function Dashboard() {
 
   return (
     <SheetDataProvider>
-      <div className={`${geistSans.className} ${geistMono.className} relative min-h-screen bg-[#FDFAF7] dark:bg-black text-zinc-900 dark:text-zinc-100 transition-colors overflow-hidden`}>
+      <div className={`relative min-h-screen bg-[#FDFAF7] dark:bg-black text-zinc-900 dark:text-zinc-100 transition-colors overflow-hidden`}>
         {/* Decorative background blobs — hidden in print */}
         <div data-no-print className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
           <div className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full bg-[#915BD8]/30 blur-3xl dark:bg-[#915BD8]/15" />
@@ -133,6 +130,8 @@ export default function Dashboard() {
             </div>
 
             <div data-no-print><SheetStatus /></div>
+
+            <ProjectBanner />
 
             <DndContext
               sensors={sensors}

@@ -4,11 +4,7 @@ import { useRouter } from "next/router";
 import { Lock, ArrowRight, Loader2 } from "lucide-react";
 import Image from "next/image";
 import logo from "../../public/logo.png";
-import { Geist, Geist_Mono } from "next/font/google";
 import { sileo } from "sileo";
-
-const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
-const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export default function Login() {
   const [password, setPassword] = useState("");
@@ -42,7 +38,7 @@ export default function Login() {
   };
 
   return (
-    <div className={`${geistSans.className} ${geistMono.className} min-h-screen bg-zinc-100 dark:bg-black text-zinc-900 dark:text-zinc-100 flex items-center justify-center p-6 transition-colors`}>
+    <div className={`min-h-screen bg-zinc-100 dark:bg-black text-zinc-900 dark:text-zinc-100 flex items-center justify-center p-6 transition-colors`}>
       <Head>
         <title>Login - Sun Money</title>
       </Head>

@@ -6,7 +6,9 @@ import {
   User,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { useSheet } from "@/context/SheetContext";
+import { useProjectImages, projectImageUrl } from "@/hooks/useProjectImages";
 
 const MONTHS = [
   "Enero",
@@ -82,6 +84,8 @@ export default function FilterToolbar() {
       : selectedProjects.length === 1
       ? selectedProjects[0]
       : `${selectedProjects.length} proyectos`;
+
+  const { images: projectImages } = useProjectImages();
 
   const investors = data.investors || ["Total"];
   const projects = (data.projects || []).filter((p) => p !== "Total");
@@ -163,6 +167,7 @@ export default function FilterToolbar() {
 
             {projects.map((proj) => {
               const checked = selectedProjects.includes(proj);
+              const fileId = projectImages[proj];
               return (
                 <button
                   key={proj}
@@ -181,7 +186,18 @@ export default function FilterToolbar() {
                       </svg>
                     )}
                   </span>
-                  {proj}
+                  {fileId && (
+                    <div className="relative w-6 h-6 rounded-md overflow-hidden shrink-0 border border-zinc-200 dark:border-zinc-700">
+                      <Image
+                        src={projectImageUrl(fileId)}
+                        alt={proj}
+                        fill
+                        className="object-cover"
+                        unoptimized
+                      />
+                    </div>
+                  )}
+                  <span className="truncate">{proj}</span>
                 </button>
               );
             })}

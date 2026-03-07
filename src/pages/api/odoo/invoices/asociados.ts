@@ -63,11 +63,13 @@ function buildDateDomain(months: string[], year: number): unknown[] {
 
 export type AsociadoInvoice = {
   id: number;
-  factura: string;   // Número de factura, e.g. "SUFV507"
-  cliente: string;   // Cliente = Inversionista
-  fecha: string;     // invoice_date, e.g. "2025-03-01"
-  monto: number;     // amount_total
-  estado: string;    // "posted" | "draft" | "cancel"
+  factura: string;        // Número de factura, e.g. "SUFV507"
+  cliente: string;        // Cliente = Inversionista
+  fecha: string;          // invoice_date, e.g. "2025-03-01"
+  fechaVencimiento: string; // invoice_date_due
+  monto: number;          // amount_total
+  estado: string;         // "posted" | "draft" | "cancel"
+  estadoPago: string;     // "paid" | "not_paid" | "in_payment" | "partial" | "reversed"
 };
 
 type OdooInvoiceRaw = {
@@ -75,8 +77,10 @@ type OdooInvoiceRaw = {
   name: string;
   partner_id: [number, string] | false;
   invoice_date: string | false;
+  invoice_date_due: string | false;
   amount_total: number;
   state: string;
+  payment_state: string;
 };
 
 export default async function handler(
@@ -101,7 +105,7 @@ export default async function handler(
     // Dominio base: facturas de cliente no canceladas
     const domain: unknown[] = [
       ["move_type", "=", "out_invoice"],
-      ["state", "!=", "cancel"],
+      ["state", "=", "posted"],
     ];
 
     // Filtro de periodo
@@ -116,19 +120,24 @@ export default async function handler(
       "search_read",
       [domain],
       {
-        fields: ["name", "partner_id", "invoice_date", "amount_total", "state"],
+        fields: ["name", "partner_id", "invoice_date", "invoice_date_due", "amount_total", "state", "payment_state"],
         order: "invoice_date desc",
         limit: 500,
       },
     )) as OdooInvoiceRaw[];
 
+    const today = new Date().toISOString().slice(0, 10);
     const invoices: AsociadoInvoice[] = raw.map((inv) => ({
-      id:      inv.id,
-      factura: inv.name,
-      cliente: inv.partner_id ? inv.partner_id[1] : "—",
-      fecha:   inv.invoice_date || "—",
-      monto:   inv.amount_total,
-      estado:  inv.state,
+      id:               inv.id,
+      factura:          inv.name,
+      cliente:          inv.partner_id ? inv.partner_id[1] : "—",
+      fecha:            inv.invoice_date || "—",
+      fechaVencimiento: inv.invoice_date_due || "—",
+      monto:            inv.amount_total,
+      estado:           inv.state,
+      estadoPago:       inv.payment_state === "not_paid" && inv.invoice_date_due && inv.invoice_date_due < today
+                          ? "overdue"
+                          : inv.payment_state,
     }));
 
     return res.status(200).json({ success: true, count: invoices.length, invoices });

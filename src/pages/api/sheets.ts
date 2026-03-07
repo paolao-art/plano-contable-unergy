@@ -49,7 +49,32 @@ const findRowsAndValuesByFilters = (
     const cellValue = row[targetIdx];
     let val = 0;
     if (cellValue !== undefined && cellValue !== null && cellValue !== "") {
-      val = parseFloat(String(cellValue).replace(/[^-0-9.]/g, "")) || 0;
+      // Strip currency symbols, spaces, % — keep only digits, sign, separators
+      const raw = String(cellValue).trim().replace(/[^-0-9.,]/g, "");
+      let normalized: string;
+      const lastComma  = raw.lastIndexOf(",");
+      const lastPeriod = raw.lastIndexOf(".");
+
+      if (lastComma === -1 && lastPeriod === -1) {
+        normalized = raw;
+      } else if (lastComma === -1) {
+        // Only periods: multiple → thousands ("1.500.000"), single → decimal ("0.15")
+        normalized = (raw.match(/\./g) || []).length > 1
+          ? raw.replace(/\./g, "")
+          : raw;
+      } else if (lastPeriod === -1) {
+        // Only commas: multiple → thousands ("1,500,000"), single → decimal ("0,15")
+        normalized = (raw.match(/,/g) || []).length > 1
+          ? raw.replace(/,/g, "")
+          : raw.replace(",", ".");
+      } else if (lastComma > lastPeriod) {
+        // Colombian/European: "1.500.000,50" → period=thousands, comma=decimal
+        normalized = raw.replace(/\./g, "").replace(",", ".");
+      } else {
+        // US: "1,500,000.50" → comma=thousands, period=decimal
+        normalized = raw.replace(/,/g, "");
+      }
+      val = Math.abs(parseFloat(normalized) || 0);
     }
     
     // Create structured source row for the UI
@@ -260,7 +285,14 @@ export default async function handler(
       });
 
       const marketingCosts = compute((get) => get({ ...baseFilter, Concepto: "Comercialización" }));
-      const costs = compute((get) => get({ ...baseFilter, "Documento contable": "Costos" }));
+      const costs = compute((get) => {
+        const costos = get({ ...baseFilter, "Documento contable": "Costos" });
+        const comprasBolsa = get({ ...baseFilter, Concepto: "Compras en bolsa" });
+        return {
+          value: costos.value + comprasBolsa.value,
+          sourceRows: [...costos.sourceRows, ...comprasBolsa.sourceRows],
+        };
+      });
 
       aggEnergyIncome.value += energyIncome.value;
       aggEnergyIncome.sourceRows.push(...energyIncome.sourceRows);
@@ -290,7 +322,7 @@ export default async function handler(
     const TOTAL_CAPEX = 4300000000;
     const hasFilter = currentInvestor !== "Total" || currentProjects.length > 0;
     const capexValue = hasFilter && aggParticipationPct > 0
-      ? TOTAL_CAPEX * aggParticipationPct
+      ? TOTAL_CAPEX * (aggParticipationPct / 100)
       : TOTAL_CAPEX;
     const capex: MetricDetail = { value: capexValue, sourceRows: [] };
     const monthlyUtility: MetricDetail = {
@@ -301,10 +333,7 @@ export default async function handler(
       value: capex.value !== 0 ? ((monthlyUtility.value - capex.value) / capex.value) * 100 : 0,
       sourceRows: [...monthlyUtility.sourceRows],
     };
-    const tir: MetricDetail = {
-      value: computeIRR(capex.value, monthlyUtility.value, 360),
-      sourceRows: [...capex.sourceRows, ...monthlyUtility.sourceRows],
-    };
+    const tir: MetricDetail = { value: 0, sourceRows: [] };
 
     const investors = allInvestorSet.size > 0 ? Array.from(allInvestorSet) : ["Total"];
     const projects = allProjectSet.size > 0 ? Array.from(allProjectSet) : ["Total"];

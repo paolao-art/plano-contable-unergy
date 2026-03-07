@@ -2,6 +2,7 @@ import { TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSheet } from "@/context/SheetContext";
 import MetricModal from "./MetricModal";
+import CobrosModal from "./CobrosModal";
 import type { MetricDetail } from "@/types/sheets";
 import type { AsociadoInvoice } from "@/pages/api/odoo/invoices/asociados";
 
@@ -9,7 +10,9 @@ export default function MonthlyStats() {
   const { data, loading, selectedInvestor, selectedMonths } = useSheet();
   const netProfit = data.income - data.expenses;
   const [costsDetail, setCostsDetail] = useState<MetricDetail | null>(null);
-  const [cobrosDetail, setCobrosDetail] = useState<MetricDetail | null>(null);
+  const [cobrosInvoices, setCobrosInvoices] = useState<AsociadoInvoice[]>([]);
+  const [cobrosTotal, setCobrosTotal] = useState(0);
+  const [cobrosLoading, setCobrosLoading] = useState(false);
   const [isCobrosOpen, setIsCobrosOpen] = useState(false);
 
   useEffect(() => {
@@ -17,22 +20,18 @@ export default function MonthlyStats() {
     const params = new URLSearchParams({ months: selectedMonths.join(","), year: String(year) });
     if (selectedInvestor && selectedInvestor !== "Total") params.set("investor", selectedInvestor);
 
+    setCobrosLoading(true);
     fetch(`/api/odoo/invoices/asociados?${params}`)
       .then((r) => r.json())
       .then((res) => {
         if (!res.success) return;
         const invoices: AsociadoInvoice[] = res.invoices;
         const total = invoices.reduce((sum, inv) => sum + inv.monto, 0);
-        setCobrosDetail({
-          value: total,
-          sourceRows: invoices.map((inv) => ({
-            proyecto: inv.cliente,
-            concepto: inv.factura,
-            valor:    inv.monto,
-          })),
-        });
+        setCobrosInvoices(invoices);
+        setCobrosTotal(total);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setCobrosLoading(false));
   }, [selectedInvestor, selectedMonths]);
 
   if (loading && !data.items.length) {
@@ -51,11 +50,11 @@ export default function MonthlyStats() {
   const cards = [
     {
       label: "Cobros Unergy",
-      val: cobrosDetail?.value ?? 0,
+      val: cobrosTotal,
       icon: TrendingUp,
       color: "text-green-500",
       bg: "bg-green-500/10",
-      onClick: cobrosDetail ? () => setIsCobrosOpen(true) : undefined,
+      onClick: () => setIsCobrosOpen(true),
     },
     {
       label: "Otros Costos",
@@ -114,11 +113,12 @@ export default function MonthlyStats() {
         detail={costsDetail}
         showSoportes
       />
-      <MetricModal
+      <CobrosModal
         isOpen={isCobrosOpen}
         onClose={() => setIsCobrosOpen(false)}
-        title="Cobros Unergy"
-        detail={cobrosDetail}
+        invoices={cobrosInvoices}
+        total={cobrosTotal}
+        loading={cobrosLoading}
       />
     </>
   );
