@@ -14,8 +14,8 @@
   --color-unergy-purple: var(--unergy-purple);
   --color-unergy-oat: var(--unergy-oat);
   --color-unergy-lemon: var(--unergy-lemon);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: "Lato", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Forma DJR Display", ui-sans-serif, sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -28,5 +28,88 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Lato", ui-sans-serif, system-ui, sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: "Forma DJR Display", ui-sans-serif, sans-serif;
+}
+
+/* ─── Print styles ─────────────────────────────────────────────────── */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 1.4cm 1.6cm 1.8cm;
+  }
+
+  /* Preserve colors when printing */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Clean background */
+  html, body {
+    background: white !important;
+    color: #111 !important;
+  }
+
+  /* Hide everything marked as no-print */
+  [data-no-print] {
+    display: none !important;
+  }
+
+  /* Hide sidebar */
+  aside {
+    display: none !important;
+  }
+
+  /* Remove sidebar offset from main */
+  main {
+    padding-left: 0 !important;
+  }
+
+  /* Remove transforms from DnD sortable items */
+  [data-dnd-sortable] {
+    transform: none !important;
+    transition: none !important;
+  }
+
+  /* Strip decorative glass styles for a clean print */
+  .backdrop-blur-2xl,
+  .backdrop-blur-xl,
+  .backdrop-blur-md {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  /* Remove rounded corners and shadows — cleaner on paper */
+  .rounded-3xl,
+  .rounded-2xl {
+    border-radius: 8px !important;
+  }
+  .shadow-md,
+  .shadow-lg,
+  .shadow-xl,
+  .shadow-2xl {
+    box-shadow: 0 0 0 1px #e5e7eb !important;
+  }
+
+  /* Transactions table: remove scroll constraints so all rows print */
+  [data-print-table] {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* Avoid page breaks inside cards */
+  .print-no-break {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Force page break before transactions */
+  .print-page-break {
+    break-before: page;
+    page-break-before: always;
+  }
 }

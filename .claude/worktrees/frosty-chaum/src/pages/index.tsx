@@ -1,6 +1,7 @@
 import Head from "next/head";
-import { Menu, Zap } from "lucide-react";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Menu } from "lucide-react";
+import Image from "next/image";
+import logo from "../../public/logo.png";
 import { useState, useEffect } from "react";
 import {
   DndContext,
@@ -26,11 +27,10 @@ import TransactionsTable from "@/components/TransactionsTable";
 import DashboardHeader from "@/components/DashboardHeader";
 import FilterToolbar from "@/components/FilterToolbar";
 import SheetStatus from "@/components/SheetStatus";
+import PrintHeader from "@/components/PrintHeader";
+import DownloadPDFButton from "@/components/DownloadPDFButton";
 import { SheetDataProvider } from "@/context/SheetContext";
 import SortableItem from "@/components/Draggable";
-
-const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
-const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 const DEFAULT_ORDER = ["project-summary", "monthly-stats", "transactions-table"];
 
@@ -71,8 +71,6 @@ export default function Dashboard() {
     switch (id) {
       case "project-summary":
         return <ProjectSummary />;
-      case "monthly-stats":
-        return <MonthlyStats />;
       case "transactions-table":
         return <TransactionsTable />;
       default:
@@ -84,29 +82,32 @@ export default function Dashboard() {
 
   return (
     <SheetDataProvider>
-      <div className={`${geistSans.className} ${geistMono.className} relative min-h-screen bg-[#FDFAF7] dark:bg-black text-zinc-900 dark:text-zinc-100 transition-colors overflow-hidden`}>
-        {/* Decorative background blobs */}
-        <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+      <div className={`relative min-h-screen bg-[#FDFAF7] dark:bg-black text-zinc-900 dark:text-zinc-100 transition-colors overflow-hidden`}>
+        {/* Decorative background blobs — hidden in print */}
+        <div data-no-print className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
           <div className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full bg-[#915BD8]/30 blur-3xl dark:bg-[#915BD8]/15" />
           <div className="absolute -bottom-40 -right-40 w-[550px] h-[550px] rounded-full bg-[#F6FF72]/40 blur-3xl dark:bg-[#F6FF72]/10" />
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[350px] rounded-full bg-[#915BD8]/15 blur-3xl dark:bg-[#915BD8]/8" />
           <div className="absolute top-1/4 right-0 w-[300px] h-[300px] rounded-full bg-[#F6FF72]/25 blur-2xl dark:bg-[#F6FF72]/5" />
         </div>
         <Head>
-          <title>Panel Contable - Unergy</title>
+          <title>Sun Money - Unergy</title>
         </Head>
 
         <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
 
         <main className="relative z-10 lg:pl-64 transition-all duration-300">
-          <div className="lg:hidden flex items-center justify-between p-4 bg-white/60 dark:bg-zinc-900/60 backdrop-blur-xl border-b border-white/40 dark:border-zinc-800/50 sticky top-0 z-30">
+          <div data-no-print className="lg:hidden flex items-center justify-between p-4 bg-white/60 dark:bg-zinc-900/60 backdrop-blur-xl border-b border-white/40 dark:border-zinc-800/50 sticky top-0 z-30">
             <div className="flex items-center gap-2">
-              <div className="bg-[#915BD8] p-1.5 rounded-xl text-white shadow-md">
-                <Zap className="w-4 h-4 fill-current" />
+              <Image src={logo} alt="Unergy" width={28} height={28} className="rounded-lg shrink-0" />
+              <div className="flex flex-col leading-tight">
+                <span className="text-base font-black tracking-tight">Unergy</span>
+                <span className="text-[8px] font-semibold text-zinc-400 tracking-tight leading-none">
+                  Energía Digital S.A.S E.S.P
+                </span>
               </div>
-              <span className="text-lg font-bold tracking-tight">Unergy</span>
             </div>
-            <button 
+            <button
               type="button"
               onClick={() => setIsSidebarOpen(true)}
               className="p-2 bg-zinc-100 dark:bg-zinc-800 rounded-xl"
@@ -116,12 +117,18 @@ export default function Dashboard() {
           </div>
 
           <div className="max-w-6xl mx-auto p-4 md:p-6 space-y-6">
+            {/* Print-only header with branding + filter summary */}
+            <PrintHeader />
+
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
               <DashboardHeader />
-              <FilterToolbar />
+              <div className="flex items-center gap-2">
+                <FilterToolbar />
+                <DownloadPDFButton />
+              </div>
             </div>
 
-            <SheetStatus />
+            <div data-no-print><SheetStatus /></div>
 
             <DndContext
               sensors={sensors}

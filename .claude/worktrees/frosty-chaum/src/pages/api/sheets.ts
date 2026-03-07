@@ -4,6 +4,17 @@ import { SheetData, Transaction, MetricDetail, SourceRow } from "@/types/sheets"
 
 // --- UTILITIES ---
 
+const columnIndexToLetter = (idx: number): string => {
+  let letter = "";
+  let n = idx + 1;
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    letter = String.fromCharCode(65 + rem) + letter;
+    n = Math.floor((n - 1) / 26);
+  }
+  return letter;
+};
+
 const findRowsAndValuesByFilters = (
   rows: string[][],
   headers: string[],
@@ -13,15 +24,17 @@ const findRowsAndValuesByFilters = (
   const targetIdx = headers.indexOf(targetHeader);
   const conceptoIdx = headers.indexOf("Concepto");
   const proyectoIdx = headers.indexOf("Proyecto");
+  const inversionistaIdx = headers.indexOf("Inversionista");
+  const consecutivoIdx = headers.indexOf("Consecutivo Ingresos");
 
   if (targetIdx === -1) return { values: [0], sourceRows: [] };
 
   const matchedRows = rows.filter((row) => {
     return Object.entries(filters).every(([filterHeader, filterValue]) => {
       const colIdx = headers.indexOf(filterHeader);
-      if (colIdx === -1) return true;
+      if (colIdx === -1) return true; 
       const cellValue = String(row[colIdx]).trim();
-
+      
       if (filterValue instanceof RegExp) {
         return filterValue.test(cellValue);
       }
@@ -30,19 +43,54 @@ const findRowsAndValuesByFilters = (
   });
 
   if (matchedRows.length === 0) return { values: [0], sourceRows: [] };
-
+  
   const sourceRows: SourceRow[] = [];
   const values = matchedRows.map(row => {
     const cellValue = row[targetIdx];
     let val = 0;
     if (cellValue !== undefined && cellValue !== null && cellValue !== "") {
-      val = parseFloat(String(cellValue).replace(/[^-0-9.]/g, "")) || 0;
-    }
+      // Strip currency symbols, spaces, % — keep only digits, sign, separators
+      const raw = String(cellValue).trim().replace(/[^-0-9.,]/g, "");
+      let normalized: string;
+      const lastComma  = raw.lastIndexOf(",");
+      const lastPeriod = raw.lastIndexOf(".");
 
+      if (lastComma === -1 && lastPeriod === -1) {
+        normalized = raw;
+      } else if (lastComma === -1) {
+        // Only periods: multiple → thousands ("1.500.000"), single → decimal ("0.15")
+        normalized = (raw.match(/\./g) || []).length > 1
+          ? raw.replace(/\./g, "")
+          : raw;
+      } else if (lastPeriod === -1) {
+        // Only commas: multiple → thousands ("1,500,000"), single → decimal ("0,15")
+        normalized = (raw.match(/,/g) || []).length > 1
+          ? raw.replace(/,/g, "")
+          : raw.replace(",", ".");
+      } else if (lastComma > lastPeriod) {
+        // Colombian/European: "1.500.000,50" → period=thousands, comma=decimal
+        normalized = raw.replace(/\./g, "").replace(",", ".");
+      } else {
+        // US: "1,500,000.50" → comma=thousands, period=decimal
+        normalized = raw.replace(/,/g, "");
+      }
+      val = Math.abs(parseFloat(normalized) || 0);
+    }
+    
     // Create structured source row for the UI
+    const consecutivoRaw = consecutivoIdx !== -1 ? String(row[consecutivoIdx] || "").trim() : "";
+    // Support: direct URL (injected from hyperlink metadata), =HYPERLINK formula, or filename with .pdf
+    const hyperlinkMatch = consecutivoRaw.match(/^=HYPERLINK\(["']([^"']+)["']/i);
+    const soporte = hyperlinkMatch
+      ? hyperlinkMatch[1]
+      : (consecutivoRaw.startsWith("http") || consecutivoRaw.toLowerCase().includes(".pdf")
+          ? consecutivoRaw
+          : undefined);
     sourceRows.push({
       proyecto: proyectoIdx !== -1 ? String(row[proyectoIdx] || "").trim() : "Consolidado",
       concepto: conceptoIdx !== -1 ? String(row[conceptoIdx] || "").trim() : "N/A",
+      inversionista: inversionistaIdx !== -1 ? String(row[inversionistaIdx] || "").trim() : undefined,
+      soporte,
       valor: val
     });
 
@@ -91,9 +139,15 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<SheetData | { error: string; sheetExists?: boolean }>,
 ) {
-  const { month, investor, project } = req.query;
+  const monthsParam = ((req.query.months || req.query.month) as string | undefined);
+  const { investor, projects: projectsParam } = req.query;
 
-  if (!month || typeof month !== "string") {
+  if (!monthsParam) {
+    return res.status(400).json({ error: "Month is required", sheetExists: false });
+  }
+
+  const months = monthsParam.split(",").map((m) => m.trim()).filter(Boolean);
+  if (months.length === 0) {
     return res.status(400).json({ error: "Month is required", sheetExists: false });
   }
 
@@ -113,8 +167,7 @@ export default async function handler(
       projectMetrics: {
         capex: mockMetric(150000), energyIncome: mockMetric(4500),
         marketingCosts: mockMetric(800), monthlyUtility: mockMetric(3700),
-        roi: { value: 2.4, sourceRows: [] },
-        costs: mockMetric(1200), tir: { value: 0.05, sourceRows: [] }
+        roi: { value: 2.4, sourceRows: [] }, costs: mockMetric(0), tir: { value: 0.05, sourceRows: [] }
       }
     });
   }
@@ -130,98 +183,177 @@ export default async function handler(
     const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId, fields: "sheets.properties.title" });
     const sheetTitles = spreadsheet.data.sheets?.map((s) => s.properties?.title) || [];
 
-    if (!sheetTitles.includes(month)) {
-      return res.status(404).json({ error: `La hoja '${month}' no existe.`, sheetExists: false });
+    const validMonths = months.filter((m) => sheetTitles.includes(m));
+    if (validMonths.length === 0) {
+      return res.status(404).json({ error: `La hoja '${months[0]}' no existe.`, sheetExists: false });
     }
-
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: `${month}!A1:Z500`,
-    });
-
-    const allRows = (response.data.values as string[][]) || [];
-    if (allRows.length === 0) {
-      return res.status(200).json({ income: 0, expenses: 0, items: [], sheetExists: true, investors: [], projects: [] });
-    }
-
-    const headers = allRows[0].map((h) => String(h).trim());
-    const dataRows = allRows.slice(1);
-
-    const investorIdx = headers.indexOf("Inversionista");
-    const projectIdx = headers.indexOf("Proyecto");
-
-    const investors = investorIdx !== -1
-      ? Array.from(new Set(dataRows.map(r => String(r[investorIdx]).trim()).filter(Boolean)))
-      : ["Total"];
 
     const currentInvestor = (investor as string) || "Total";
-    const currentProject = (project as string) || "Total";
+    const currentProjects = projectsParam
+      ? (projectsParam as string).split(",").map((p) => p.trim()).filter(Boolean)
+      : [];
 
-    const projects = projectIdx !== -1
-      ? Array.from(new Set(dataRows
-        .filter(r => currentInvestor === "Total" || String(r[investorIdx]).trim() === currentInvestor)
-        .map(r => String(r[projectIdx]).trim())
-        .filter(Boolean)))
-      : ["Total"];
+    let allItems: Transaction[] = [];
+    const allInvestorSet = new Set<string>();
+    const allProjectSet = new Set<string>();
+    let totalIncome = 0;
+    let totalExpenses = 0;
 
-    const compute = createCalculator(dataRows, headers, "Total");
+    const aggEnergyIncome: MetricDetail = { value: 0, sourceRows: [] };
+    const aggMarketingCosts: MetricDetail = { value: 0, sourceRows: [] };
+    const aggCosts: MetricDetail = { value: 0, sourceRows: [] };
+    let aggParticipationPct = 0;
 
-    const baseFilter: Record<string, string> = {};
-    if (currentInvestor !== "Total") baseFilter.Inversionista = currentInvestor;
-    if (currentProject !== "Total") baseFilter.Proyecto = currentProject;
+    for (const month of validMonths) {
+      const response = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: `${month}!A1:Z10000`,
+      });
 
-    const energyIncome = compute(get => {
-      const ingresos = get({ ...baseFilter, Concepto: /^Ingreso/ });
-      const despacho = get({ ...baseFilter, Concepto: "Despacho" });
-      return {
-        value: ingresos.value + despacho.value,
-        sourceRows: [...ingresos.sourceRows, ...despacho.sourceRows]
-      };
-    });
+      const allRows = (response.data.values as string[][]) || [];
+      if (allRows.length === 0) continue;
 
-    const marketingCosts = compute(get => get({ ...baseFilter, Concepto: "Comercialización" }));
-    const monthlyUtility = compute(get => get({ ...baseFilter, Concepto: "Utilidad del proyecto por mes" }));
-    const capex = compute(get => get({ ...baseFilter, Concepto: "Inversion Inicial" }));
+      const headers = allRows[0].map((h) => String(h).trim());
+
+      // Inject real hyperlink URLs into the "Consecutivo Ingresos" column
+      const consecutivoColIdx = headers.indexOf("Consecutivo Ingresos");
+      if (consecutivoColIdx !== -1) {
+        const colLetter = columnIndexToLetter(consecutivoColIdx);
+        try {
+          const gridRes = await sheets.spreadsheets.get({
+            spreadsheetId,
+            ranges: [`${month}!${colLetter}1:${colLetter}10000`],
+            includeGridData: true,
+            fields: "sheets.data.rowData.values.hyperlink",
+          });
+          const rowData = gridRes.data.sheets?.[0]?.data?.[0]?.rowData || [];
+          rowData.forEach((rd, i) => {
+            const url = (rd.values?.[0] as { hyperlink?: string })?.hyperlink;
+            if (url && allRows[i]) allRows[i][consecutivoColIdx] = url;
+          });
+        } catch { /* fallback to text value */ }
+      }
+
+      const conceptoIdx = headers.indexOf("Concepto");
+      const dataRows = allRows.slice(1).filter((row) =>
+        conceptoIdx === -1 || String(row[conceptoIdx] || "").trim() !== "Valor a pagar"
+      );
+
+      const investorIdx = headers.indexOf("Inversionista");
+      const projectIdx = headers.indexOf("Proyecto");
+
+      if (investorIdx !== -1) {
+        dataRows.forEach((r) => {
+          const v = String(r[investorIdx]).trim();
+          if (v) allInvestorSet.add(v);
+        });
+      }
+
+      if (projectIdx !== -1) {
+        dataRows
+          .filter((r) => currentInvestor === "Total" || String(r[investorIdx]).trim() === currentInvestor)
+          .forEach((r) => {
+            const v = String(r[projectIdx]).trim();
+            if (v) allProjectSet.add(v);
+          });
+      }
+
+      const compute = createCalculator(dataRows, headers, "Total");
+      const baseFilter: Record<string, string | RegExp> = {};
+      if (currentInvestor !== "Total") baseFilter.Inversionista = currentInvestor;
+      if (currentProjects.length === 1) {
+        baseFilter.Proyecto = currentProjects[0];
+      } else if (currentProjects.length > 1) {
+        const escaped = currentProjects.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+        baseFilter.Proyecto = new RegExp(`^(${escaped.join("|")})$`);
+      }
+
+      const participationDetail = compute((get) => get({ ...baseFilter, Concepto: "Porcentaje de Participación" }));
+      if (participationDetail.value > 0 && aggParticipationPct === 0) {
+        aggParticipationPct = participationDetail.value;
+      }
+
+      const energyIncome = compute((get) => {
+        const ingresos = get({ ...baseFilter, Concepto: /^Ingreso/ });
+        const redistribucion = get({ ...baseFilter, Concepto: "Redistribución de ingresos de acuerdo al Protocolo" });
+        const despacho = get({ ...baseFilter, Concepto: "Despacho" });
+        const ventasBolsa = get({ ...baseFilter, Concepto: "Ventas en bolsa" });
+        return {
+          value: ingresos.value + redistribucion.value + despacho.value + ventasBolsa.value,
+          sourceRows: [...ingresos.sourceRows, ...redistribucion.sourceRows, ...despacho.sourceRows, ...ventasBolsa.sourceRows],
+        };
+      });
+
+      const marketingCosts = compute((get) => get({ ...baseFilter, Concepto: "Comercialización" }));
+      const costs = compute((get) => {
+        const costos = get({ ...baseFilter, "Documento contable": "Costos" });
+        const comprasBolsa = get({ ...baseFilter, Concepto: "Compras en bolsa" });
+        return {
+          value: costos.value + comprasBolsa.value,
+          sourceRows: [...costos.sourceRows, ...comprasBolsa.sourceRows],
+        };
+      });
+
+      aggEnergyIncome.value += energyIncome.value;
+      aggEnergyIncome.sourceRows.push(...energyIncome.sourceRows);
+      aggMarketingCosts.value += marketingCosts.value;
+      aggMarketingCosts.sourceRows.push(...marketingCosts.sourceRows);
+      aggCosts.value += costs.value;
+      aggCosts.sourceRows.push(...costs.sourceRows);
+
+      const items: Transaction[] = dataRows
+        .filter((row) => {
+          const isTransaction = row[0] && row[1] && row[2];
+          const matchesInvestor = currentInvestor === "Total" || String(row[investorIdx]).trim() === currentInvestor;
+          const matchesProject = currentProjects.length === 0 || currentProjects.includes(String(row[projectIdx]).trim());
+          return isTransaction && matchesInvestor && matchesProject;
+        })
+        .map((row) => ({
+          date: row[0] || "",
+          category: row[1] || "",
+          amount: parseFloat(String(row[2]).replace(/[^-0-9.]/g, "")) || 0,
+        }));
+
+      totalIncome += items.reduce((sum, item) => (item.amount > 0 ? sum + item.amount : sum), 0);
+      totalExpenses += items.reduce((sum, item) => (item.amount < 0 ? sum + Math.abs(item.amount) : sum), 0);
+      allItems = allItems.concat(items);
+    }
+
+    const TOTAL_CAPEX = 4300000000;
+    const hasFilter = currentInvestor !== "Total" || currentProjects.length > 0;
+    const capexValue = hasFilter && aggParticipationPct > 0
+      ? TOTAL_CAPEX * aggParticipationPct
+      : TOTAL_CAPEX;
+    const capex: MetricDetail = { value: capexValue, sourceRows: [] };
+    const monthlyUtility: MetricDetail = {
+      value: aggEnergyIncome.value - aggMarketingCosts.value - aggCosts.value,
+      sourceRows: [...aggEnergyIncome.sourceRows, ...aggMarketingCosts.sourceRows, ...aggCosts.sourceRows],
+    };
     const roi: MetricDetail = {
       value: capex.value !== 0 ? ((monthlyUtility.value - capex.value) / capex.value) * 100 : 0,
       sourceRows: [...monthlyUtility.sourceRows],
     };
-    const tir: MetricDetail = {
-      value: computeIRR(capex.value, monthlyUtility.value, 360),
-      sourceRows: [...capex.sourceRows, ...monthlyUtility.sourceRows],
-    };
+    const tir: MetricDetail = { value: 0, sourceRows: [] };
 
-    const items: Transaction[] = dataRows
-      .filter((row) => {
-        const isTransaction = row[0] && row[1] && row[2];
-        const matchesInvestor = currentInvestor === "Total" || String(row[investorIdx]).trim() === currentInvestor;
-        const matchesProject = currentProject === "Total" || String(row[projectIdx]).trim() === currentProject;
-        return isTransaction && matchesInvestor && matchesProject;
-      })
-      .map((row) => ({
-        date: row[0] || "",
-        category: row[1] || "",
-        amount: parseFloat(String(row[2]).replace(/[^-0-9.]/g, "")) || 0,
-      }));
-
-    const income = items.reduce((sum, item) => (item.amount > 0 ? sum + item.amount : sum), 0);
-    const expenses = items.reduce((sum, item) => (item.amount < 0 ? sum + Math.abs(item.amount) : sum), 0);
+    const investors = allInvestorSet.size > 0 ? Array.from(allInvestorSet) : ["Total"];
+    const projects = allProjectSet.size > 0 ? Array.from(allProjectSet) : ["Total"];
 
     return res.status(200).json({
-      income,
-      expenses,
-      items,
+      income: totalIncome,
+      expenses: totalExpenses,
+      items: allItems,
       sheetExists: true,
       investors,
       projects,
       projectMetrics: {
         capex,
-        energyIncome,
-        marketingCosts,
+        energyIncome: aggEnergyIncome,
+        marketingCosts: aggMarketingCosts,
         monthlyUtility,
         roi,
-        costs: marketingCosts,
+        costs: aggCosts,
         tir,
+        participationPct: aggParticipationPct > 0 ? aggParticipationPct : undefined,
       },
     });
   } catch (error: unknown) {

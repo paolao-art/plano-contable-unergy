@@ -1,13 +1,38 @@
 import { TrendingDown, TrendingUp, Wallet } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSheet } from "@/context/SheetContext";
 import MetricModal from "./MetricModal";
+import CobrosModal from "./CobrosModal";
 import type { MetricDetail } from "@/types/sheets";
+import type { AsociadoInvoice } from "@/pages/api/odoo/invoices/asociados";
 
 export default function MonthlyStats() {
-  const { data, loading } = useSheet();
+  const { data, loading, selectedInvestor, selectedMonths } = useSheet();
   const netProfit = data.income - data.expenses;
   const [costsDetail, setCostsDetail] = useState<MetricDetail | null>(null);
+  const [cobrosInvoices, setCobrosInvoices] = useState<AsociadoInvoice[]>([]);
+  const [cobrosTotal, setCobrosTotal] = useState(0);
+  const [cobrosLoading, setCobrosLoading] = useState(false);
+  const [isCobrosOpen, setIsCobrosOpen] = useState(false);
+
+  useEffect(() => {
+    const year = new Date().getFullYear();
+    const params = new URLSearchParams({ months: selectedMonths.join(","), year: String(year) });
+    if (selectedInvestor && selectedInvestor !== "Total") params.set("investor", selectedInvestor);
+
+    setCobrosLoading(true);
+    fetch(`/api/odoo/invoices/asociados?${params}`)
+      .then((r) => r.json())
+      .then((res) => {
+        if (!res.success) return;
+        const invoices: AsociadoInvoice[] = res.invoices;
+        const total = invoices.reduce((sum, inv) => sum + inv.monto, 0);
+        setCobrosInvoices(invoices);
+        setCobrosTotal(total);
+      })
+      .catch(() => {})
+      .finally(() => setCobrosLoading(false));
+  }, [selectedInvestor, selectedMonths]);
 
   if (loading && !data.items.length) {
     return (
@@ -24,15 +49,15 @@ export default function MonthlyStats() {
 
   const cards = [
     {
-      label: "Ingresos",
-      val: data.income,
+      label: "Cobros Unergy",
+      val: cobrosTotal,
       icon: TrendingUp,
       color: "text-green-500",
       bg: "bg-green-500/10",
-      onClick: undefined,
+      onClick: () => setIsCobrosOpen(true),
     },
     {
-      label: "Costos",
+      label: "Otros Costos",
       val: data.projectMetrics?.costs?.value ?? 0,
       icon: TrendingDown,
       color: "text-red-500",
@@ -43,7 +68,7 @@ export default function MonthlyStats() {
       },
     },
     {
-      label: "Neto",
+      label: "TIR",
       val: netProfit,
       icon: Wallet,
       color: "text-blue-500",
@@ -84,8 +109,16 @@ export default function MonthlyStats() {
       <MetricModal
         isOpen={!!costsDetail}
         onClose={() => setCostsDetail(null)}
-        title="Costos"
+        title="Otros Costos"
         detail={costsDetail}
+        showSoportes
+      />
+      <CobrosModal
+        isOpen={isCobrosOpen}
+        onClose={() => setIsCobrosOpen(false)}
+        invoices={cobrosInvoices}
+        total={cobrosTotal}
+        loading={cobrosLoading}
       />
     </>
   );
